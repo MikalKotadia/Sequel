@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/bubbles v0.18.0
 	github.com/charmbracelet/bubbletea v0.26.2
 	github.com/charmbracelet/lipgloss v0.9.1
+	github.com/georgysavva/scany v1.2.2
 	github.com/lib/pq v1.10.9
 )
 

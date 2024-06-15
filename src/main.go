@@ -1,11 +1,9 @@
 package main
 
 import (
-	// "fmt"
-	// "os"
+	"os"
 	"fmt"
 	"sequel/main/services"
-	"sequel/main/utils"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -78,23 +76,23 @@ func newListKeyMap() *listKeyMap {
 
 type model struct {
 	list          list.Model
-	itemGenerator *randomItemGenerator
 	keys          *listKeyMap
 	delegateKeys  *delegateKeyMap
 }
 
-func newModel() model {
+func newModel(table_names []string) model {
 	var (
-		itemGenerator randomItemGenerator
 		delegateKeys  = newDelegateKeyMap()
 		listKeys      = newListKeyMap()
 	)
 
-    // TODO: this is where I will be replacing this with table names. 
-	const numItems = 24
-	items := make([]list.Item, numItems)
-	for i := 0; i < numItems; i++ {
-		items[i] = itemGenerator.next()
+    num_tables := len(table_names)
+	items := make([]list.Item, num_tables)
+	for i := 0; i < num_tables; i++ {
+		items[i] = item {
+            title: table_names[i],
+            description: table_names[i],
+        }
 	}
 
 	// Setup list
@@ -117,7 +115,6 @@ func newModel() model {
 		list:          groceryList,
 		keys:          listKeys,
 		delegateKeys:  delegateKeys,
-		itemGenerator: &itemGenerator,
 	}
 }
 
@@ -165,10 +162,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.insertItem):
 			m.delegateKeys.remove.SetEnabled(true)
-			newItem := m.itemGenerator.next()
-			insCmd := m.list.InsertItem(0, newItem)
-			statusCmd := m.list.NewStatusMessage(statusMessageStyle("Added " + newItem.Title()))
-			return m, tea.Batch(insCmd, statusCmd)
+            return m, nil
 		}
 	}
 
@@ -191,10 +185,13 @@ func main() {
     if (err != nil) {
         fmt.Println("there was an error getting the tables: " + err.Error())
     }
-    utils.RowsToSlice(tables)
     
 	// if _, err := tea.NewProgram(newModel(), tea.WithAltScreen()).Run(); err != nil {
 	// 	fmt.Println("Error running program:", err)
 	// 	os.Exit(1)
 	// }
+	if _, err := tea.NewProgram(newModel(tables), tea.WithAltScreen()).Run(); err != nil {
+		fmt.Println("Error running program:", err)
+		os.Exit(1)
+	}
 }

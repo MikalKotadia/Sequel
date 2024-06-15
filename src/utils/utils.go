@@ -1,9 +1,9 @@
 package utils
 
-import (
-	"database/sql"
-	"fmt"
-)
+// import (
+// 	"database/sql"
+// 	"fmt"
+// )
 
 /*
 GetSupportedVariants returns a map containing supported SQL database variants as keys.
@@ -29,20 +29,11 @@ func GetSupportedVariants() map[string]struct{} {
     return variants
 }
 
-func RowsToSlice(rows *sql.Rows) ([]any, error) {
-    columns, err := rows.ColumnTypes()
-    if (err != nil) {
-        return nil, err
+// from https://stackoverflow.com/a/50025091/14759055
+func Map(vs []map[string]string, f func(map[string]string) string) []string {
+    vsm := make([]string, len(vs))
+    for i, v := range vs {
+        vsm[i] = f(v)
     }
-
-
-        values := make([]interface{}, len(columns))
-        rows.Scan(values...)
-        fmt.Print(values)
-    // for rows.Next() {
-    //     values := make([]interface{}, len(columns))
-    //     rows.Scan(values...)
-    //     fmt.Print(values)
-    // }
-    return []any{}, nil;
+    return vsm
 }

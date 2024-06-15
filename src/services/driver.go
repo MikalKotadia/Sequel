@@ -7,6 +7,8 @@ import (
 	"log"
 	"sequel/main/utils"
 
+	"github.com/georgysavva/scany/dbscan"
+	_ "github.com/georgysavva/scany/dbscan"
 	_ "github.com/lib/pq"
 )
 
@@ -27,7 +29,7 @@ type DbDriver interface {
 
 func (con *Connection) CreateConnection(variation string, host string, port int, user string, password string, dbname string) error {
 	_, isSupported := utils.GetSupportedVariants()[variation]
-	if (!isSupported) {
+	if !isSupported {
 		return errors.New("Database of type " + variation + " is not supported")
 	}
 
@@ -56,26 +58,50 @@ func (con *Connection) CreateConnection(variation string, host string, port int,
 	con.dbname = dbname
 	con.db = db
 
-    return nil
+	return nil
 }
 
-func (con Connection) GetTables() (*sql.Rows, error) {
+func (con Connection) GetTables() ([]string, error) {
 	var query_string string
+	var table_name string
 
-    println(con.variation)
+	println(con.variation)
 	switch con.variation {
 	case "postgres":
-		query_string = "SELECT 'tablename' FROM pg_catalog.pg_tables WHERE schemaname='public';"
+		table_name = "tablename"
+		query_string = fmt.Sprintf("SELECT %s FROM pg_catalog.pg_tables WHERE schemaname='public';", table_name)
 	default:
 		return nil, errors.ErrUnsupported
 	}
 
-    tables, err := con.db.Query(query_string)
-    if (err != nil) {
-        return nil, err
+	result, err := con.executeQuery(query_string)
+	if err != nil {
+		return nil, err
+	}
+    reducer := func (item map[string]string) string {
+        return item[table_name]
     }
 
-    // we are making it here, but the result is nil....
-	return tables, nil
+    formatted_result := utils.Map(result, reducer)
+	return formatted_result, nil
 
+}
+
+func (con Connection) executeQuery(query string) ([]map[string]string, error) {
+	rows, err := con.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+    var result []map[string]string // TODO: need to check if this will cast
+	if err := dbscan.ScanAll(&result, rows); err != nil {
+		return nil, err
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
