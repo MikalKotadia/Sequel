@@ -87,6 +87,15 @@ func (con Connection) GetTables() ([]string, error) {
 
 }
 
+func (con Connection) DropTable(table_name string) error {
+    query_string := fmt.Sprintf("DROP TABLE %s;", table_name)
+    if _, err := con.executeQuery(query_string); err != nil {
+        return err
+    }
+
+    return nil
+}
+
 func (con Connection) executeQuery(query string) ([]map[string]string, error) {
 	rows, err := con.db.Query(query)
 	if err != nil {

@@ -43,7 +43,7 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 		return nil
 	}
 
-	help := []key.Binding{keys.choose}
+	help := []key.Binding{keys.choose, keys.drop}
 
 	d.ShortHelpFunc = func() []key.Binding {
 		return help

@@ -5,6 +5,7 @@ import (
 	"os"
 	"sequel/main/services"
 	"sequel/main/utils"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -123,14 +124,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case msg.Type == tea.KeyEnter:
 				m.show_input = false
-
-				f, err := tea.LogToFile("./debug.log", "")
-				if err != nil {
-					panic("FUCK")
+                status_msg := "No Changes Made"
+				if val := strings.ToUpper(m.input.Value()); val == "Y" || val == "YES" {
+                    db.DropTable(m.selected_table.FilterValue())
+                    status_msg = "Table Dropped Successfully"
 				}
 
-				f.WriteString(m.input.Value())
-				f.Close()
+                m.list.NewStatusMessage(status_msg)
 
 				m.input.Reset()
 			}
@@ -170,7 +170,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		newListModel, cmd := m.list.Update(msg)
 		m.list = newListModel
-        m.selected_table = m.list.SelectedItem()
+        // TODO: look at using my item instead of the list item
+		m.selected_table = m.list.SelectedItem()
 		cmds = append(cmds, cmd)
 	}
 
