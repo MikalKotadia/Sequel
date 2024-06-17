@@ -3,103 +3,53 @@ package main
 import (
 	"fmt"
 	"os"
+	commandbar "sequel/main/components/CommandBar"
+	tablelist "sequel/main/components/TableList"
 	"sequel/main/services"
-	"sequel/main/utils"
+	// "sequel/main/utils"
 	"strings"
-
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	// "github.com/charmbracelet/lipgloss"
 )
 
-// declaring lipgloss styles to be used
-var (
-	appStyle = lipgloss.NewStyle().Padding(1, 2)
+// var appStyle = lipgloss.NewStyle().Padding(1, 2)
 
-	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFFDF5")).
-			Background(lipgloss.Color("#25A065")).
-			Padding(0, 1)
+var db services.Connection
 
-	statusMessageStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#04B575"}).
-				Render
+// this is the go equivalent of an enum apparently
+type ComponentId int
+
+const (
+	component_none ComponentId = iota
+	component_tablelist
+	component_textinput
 )
-
-var (
-	db      = services.Connection{}
-	db_name = "test"
-)
-
-type item struct {
-	title       string
-	description string
-}
-
-// defining the methods on the type of item. The thing after the brackets is the reciever
-func (i item) Title() string       { return i.title }
-func (i item) Description() string { return i.description }
-func (i item) FilterValue() string { return i.title }
-
-type listKeyMap struct {
-	toggleHelpMenu key.Binding
-}
-
-// will return our map struct with the needed bindings
-func newListKeyMap() *listKeyMap {
-	return &listKeyMap{
-		toggleHelpMenu: key.NewBinding(
-			key.WithKeys("H"),
-			key.WithHelp("H", "toggle help"),
-		),
-	}
-}
 
 type model struct {
-	list           list.Model
-	input          textinput.Model
-	show_input     bool
-	selected_table list.Item
-	keys           *listKeyMap
-	delegateKeys   *delegateKeyMap
+	tablelist tablelist.Model
+	command_bar            commandbar.Model
+	focused_component      ComponentId
+	prev_focused_component ComponentId
 }
 
 func newModel(db_name string, table_names []string) model {
-	var (
-		delegateKeys = newDelegateKeyMap()
-		listKeys     = newListKeyMap()
-	)
-
-	num_tables := len(table_names)
-	items := make([]list.Item, num_tables)
-	for i := 0; i < num_tables; i++ {
-		items[i] = item{
-			title:       table_names[i],
-			description: "",
-		}
-	}
-
-	// Setup list
-	delegate := newItemDelegate(delegateKeys)
-	table_list := list.New(items, delegate, 0, 0)
-	table_list.Title = db_name
-	table_list.Styles.Title = titleStyle
-	table_list.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{
-			listKeys.toggleHelpMenu,
-		}
-	}
-	table_list.DisableQuitKeybindings()
-
 	return model{
-		list:         table_list,
-		input:        textinput.New(),
-		show_input:   false,
-		keys:         listKeys,
-		delegateKeys: delegateKeys,
+		tablelist: tablelist.NewModel(db_name, table_names),
+		command_bar:       commandbar.NewModel(),
+		focused_component: component_tablelist,
 	}
+}
+
+func (m *model) setFocus(new_focus ComponentId) {
+	m.prev_focused_component = m.focused_component
+	m.focused_component = new_focus
+	return
+}
+
+func (m *model) returnFocus() {
+	m.focused_component = m.prev_focused_component
+	m.prev_focused_component = component_none
+	return
 }
 
 func (m model) Init() tea.Cmd {
@@ -109,85 +59,60 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch m.show_input {
-	case true:
+	switch m.focused_component {
+	case component_textinput:
 		switch msg := msg.(type) {
-		case tea.WindowSizeMsg:
-			h, v := appStyle.GetFrameSize()
-			m.list.SetSize(msg.Width-h, msg.Height-v)
-
-		case tea.KeyMsg:
-			switch {
-			case msg.Type == tea.KeyEscape:
-				m.show_input = false
-				m.input.Reset()
-
-			case msg.Type == tea.KeyEnter:
-				m.show_input = false
-                status_msg := "No Changes Made"
-				if val := strings.ToUpper(m.input.Value()); val == "Y" || val == "YES" {
-                    db.DropTable(m.selected_table.FilterValue())
-                    status_msg = "Table Dropped Successfully"
+		case commandbar.UserResponse:
+			switch msg.Id {
+			case "drop table":
+				status_msg := "No Changes Made"
+				if val := strings.ToUpper(msg.Value); val == "Y" || val == "YES" {
+					db.DropTable(m.tablelist.Selected_table.FilterValue())
+					status_msg = "Table Dropped Successfully"
 				}
-
-                m.list.NewStatusMessage(status_msg)
-
-				m.input.Reset()
-			}
-
-			new_input_model, cmd := m.input.Update(msg)
-			m.input = new_input_model
-			cmds = append(cmds, cmd)
-		}
-	case false:
-		switch msg := msg.(type) {
-		case tea.WindowSizeMsg:
-			h, v := appStyle.GetFrameSize()
-			m.list.SetSize(msg.Width-h, msg.Height-v)
-
-		case tea.KeyMsg:
-			// Don't match any of the keys below if we're actively filtering.
-			if m.list.FilterState() == list.Filtering {
+				m.command_bar = m.command_bar.Notify(status_msg).(commandbar.Model)
 				break
 			}
+			m.returnFocus()
 
-			switch {
-			case key.Matches(msg, m.keys.toggleHelpMenu):
-				m.list.SetShowHelp(!m.list.ShowHelp())
-				return m, nil
+		default:
+			new_input_model, cmd := m.command_bar.Update(msg)
+			m.command_bar = new_input_model.(commandbar.Model)
+			cmds = append(cmds, cmd)
 
-			case msg.String() == "q":
-				return m, tea.Quit
-			}
-
-		case utils.CustomMessage:
-			switch msg.Message {
-			case "drop table":
-				m.show_input = true
-				m.input.Focus()
-			}
 		}
 
-		newListModel, cmd := m.list.Update(msg)
-		m.list = newListModel
-        // TODO: look at using my item instead of the list item
-		m.selected_table = m.list.SelectedItem()
-		cmds = append(cmds, cmd)
+	case component_tablelist:
+		switch msg := msg.(type) {
+
+		case tablelist.TableAction:
+			switch msg.Action {
+			case "drop":
+				m.command_bar = m.command_bar.Prompt(
+					"drop table",
+					"Are you sure you want to drop table "+m.tablelist.Selected_table.FilterValue()+"? Y/N",
+				).(commandbar.Model)
+				m.setFocus(component_textinput)
+			}
+
+		default:
+			newListModel, cmd := m.tablelist.Update(msg)
+			if updated_model, ok := newListModel.(tablelist.Model); ok {
+				m.tablelist = updated_model
+				cmds = append(cmds, cmd)
+			}
+		}
 	}
 
 	return m, tea.Batch(cmds...)
 }
 
 func (m model) View() string {
-	input := ""
-	if m.show_input {
-		input = "Drop table" + m.selected_table.FilterValue() + "? Y/N: " + m.input.View()
-	}
-
-	return appStyle.Render(m.list.View()) + input
+	return m.tablelist.View() + m.command_bar.View()
 }
 
 func main() {
+	db_name := "test"
 	db.CreateConnection("postgres", "localhost", 5432, "dev", "dev", db_name)
 	tables, err := db.GetTables()
 	if err != nil {

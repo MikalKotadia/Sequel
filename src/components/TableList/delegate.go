@@ -1,4 +1,4 @@
-package main
+package tablelist
 
 import (
 	"sequel/main/utils"
@@ -8,17 +8,22 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type TableAction struct {
+	Action     string
+	Table_name string
+}
+
 func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 	d := list.NewDefaultDelegate()
 
 	d.UpdateFunc = func(msg tea.Msg, m *list.Model) tea.Cmd {
 		var title string
 
-        // this is type assertion, so i will be our item (if the type is of item and therefore it exists)
-        i, ok := m.SelectedItem().(item)
+		// this is type assertion, so i will be our item (if the type is of item and therefore it exists)
+		i, ok := m.SelectedItem().(item)
 		if !ok {
 			return nil
-		} 
+		}
 
 		title = i.Title()
 		switch msg := msg.(type) {
@@ -29,14 +34,12 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 
 			case key.Matches(msg, keys.drop):
 
-                // this is an anonymous struct
-                data := struct {
-                    Table_name string
-                }{
+				new_cmd := TableAction {
+                    Action: "drop",
                     Table_name: title,
                 }
 
-                return utils.MakeCustomMessage("drop table", data)
+				return utils.MakeCustomCommand(new_cmd)
 			}
 		}
 
@@ -58,7 +61,7 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 
 type delegateKeyMap struct {
 	choose key.Binding
-	drop key.Binding
+	drop   key.Binding
 }
 
 // Additional short help entries. This satisfies the help.KeyMap interface and
@@ -87,7 +90,7 @@ func newDelegateKeyMap() *delegateKeyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "choose"),
 		),
-        drop: key.NewBinding(
+		drop: key.NewBinding(
 			key.WithKeys("d"),
 			key.WithHelp("d", "drop table"),
 		),

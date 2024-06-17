@@ -7,13 +7,8 @@ import tea "github.com/charmbracelet/bubbletea"
 // 	"fmt"
 // )
 
-type CustomMessage struct {
-	Message string
-	Data interface{}
-}
-
-func MakeCustomMessage(message string, data interface{}) tea.Cmd {
-	return func() tea.Msg { return CustomMessage{Message: message, Data: data} }
+func MakeCustomCommand(data interface{}) tea.Cmd {
+	return func() tea.Msg { return data } 
 }
 
 /*
